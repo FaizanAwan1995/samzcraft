@@ -12,17 +12,17 @@ A mobile-responsive crochet storefront with an email-code protected maker studio
 - WhatsApp and Messenger are configurable in private shop settings; email enquiry form persists enquiries in admin.
 - Maker studio supports camera/gallery upload, automatic JPEG resizing, product title/description/category/price/stock/visibility, archiving/restoring, order status management, enquiries, settings, activity, and email outbox.
 - Order requests generate an ID, reserve stock transactionally, compute totals from database prices, and queue email to buyer and both admins. Duplicate retries are idempotent. Cancelling restores stock exactly once.
-- **Checkout deliberately closed:** actual prices/stock are unknown and no email sender is configured. No invented prices or stock. Showcase listings support enquiries.
+- Every showcase listing has Add to cart. Carts containing unpriced items submit quote requests with unique SAMZ-Q references; no price, stock reservation or payment is implied. Priced-order checkout remains closed until stock/prices and an email sender are configured.
 - No card payment integration. Delivery costs and payment instructions are confirmed manually before payment.
 - Source repository: https://github.com/FaizanAwan1995/samzcraft (created by the owner).
-- Automated tests: 8 passing. Desktop live UI checked; contact form opens and dock hides/restores. Admin path reaches Cloudflare email-code login. Signed-in admin UI and phone viewport remain unverified.
+- Automated tests: 12 passing. Desktop live UI checked; contact form opens and dock hides/restores. Admin path reaches Cloudflare email-code login. Signed-in admin UI and phone viewport remain unverified.
 
 ## Finish setup
 
-1. Before redeploying this configurable source, set `ADMIN_EMAILS` to the two approved comma-separated email addresses in Cloudflare Worker secrets. The running deployment already has its admin allowlist; this source avoids publishing personal addresses. Also set Cloudflare Worker secrets `EMAIL_API_KEY` (Resend) and `EMAIL_FROM` (an address on a verified sender domain). Do not use a Gmail address as an unverified sender. Keys must never enter source control. Email replies route to the shop's nominated Gmail.
+1. `ADMIN_EMAILS` has been configured privately on the running Worker. Preserve that secret on future deployments; never commit its value. Also set Cloudflare Worker secrets `EMAIL_API_KEY` (Resend) and `EMAIL_FROM` (an address on a verified sender domain). Do not use a Gmail address as an unverified sender. Keys must never enter source control. Email replies route to the shop's nominated Gmail.
 2. Sign into the maker studio, confirm product photos/details, set real AUD prices and stock, and change those products to For sale.
 3. Verify a test email to both admins and an actual controlled buyer address. Open online order requests in Shop settings only after that check.
-4. Source is maintained in `FaizanAwan1995/samzcraft`. No credentials are included. Cloudflare currently uses a direct deployment; pushing to GitHub does not automatically deploy.
+4. Source is maintained in `FaizanAwan1995/samzcraft`. No credentials are included. Cloudflare Workers Builds connects this repository to the existing samz-crafts Worker. Pushes to main run the build, syntax checks and tests before deploying with pinned Wrangler 4.152.0.
 5. Optional: add a crochet business domain to the Worker and extend Access protection to its /admin path. Do not add an admin route on an unprotected hostname without updating the Access application.
 
 ## Build and tests

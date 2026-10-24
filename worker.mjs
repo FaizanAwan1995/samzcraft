@@ -19,7 +19,7 @@ async function admin(req,env){
  try{
   const parts=token.split('.');if(parts.length!==3)fail('Invalid sign-in',401);
   const h=JSON.parse(new TextDecoder().decode(un64(parts[0]))),p=JSON.parse(new TextDecoder().decode(un64(parts[1])));
-  if(h.alg!=='RS256'||p.iss!==ISSUER||!(Array.isArray(p.aud)?p.aud:[p.aud]).includes(AUD)||p.exp<=Date.now()/1000||p.nbf>Date.now()/1000)fail('Sign-in expired',401);
+  if(h.alg!=='RS256'||p.iss!==ISSUER||!(Array.isArray(p.aud)?p.aud:[p.aud]).includes(AUD)||(!Number.isFinite(p.exp)||p.exp<=Date.now()/1000)||p.nbf>Date.now()/1000)fail('Sign-in expired',401);
   const r=await fetch(ISSUER+'/cdn-cgi/access/certs',{cf:{cacheTtl:3600,cacheEverything:true}});if(!r.ok)fail('Sign-in unavailable',503);
   const jwks=await r.json(),jwk=jwks.keys.find(k=>k.kid===h.kid);if(!jwk)fail('Invalid sign-in',401);
   const key=await crypto.subtle.importKey('jwk',jwk,{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['verify']);
@@ -58,7 +58,7 @@ async function handle(req,env,ctx){
   const settings=await config(env);if(settings.checkout_enabled!=='true'||!env.EMAIL_API_KEY||!env.EMAIL_FROM)fail('Online orders are not open yet. Please message us to order.',503);
   if(fulfilment==='delivery'&&!address)fail('Please enter your delivery address.');
   if(!Array.isArray(b.items)||!b.items.length||b.items.length>20)fail('Please check your basket.');
-  const items=b.items.map(i=>({id:text(i.id,100),quantity:Number(i.quantity)}));
+  const items=b.items.map(i=>({id:text(i?.id,100),quantity:Number(i?.quantity)}));
   if(new Set(items.map(i=>i.id)).size!==items.length||items.some(i=>!Number.isInteger(i.quantity)||i.quantity<1||i.quantity>20))fail('Please check the item quantities.');
   await limited(req,env,'order',5);
   const products=[];for(const i of items){const product=await env.DB.prepare("SELECT * FROM products WHERE id=? AND status='active'").bind(i.id).first();if(!product||!product.price||product.stock<i.quantity)fail('An item is no longer available. Please refresh your basket.',409);products.push({...product,quantity:i.quantity});}
@@ -69,6 +69,21 @@ async function handle(req,env,ctx){
   try{await env.DB.batch(statements);}catch{const old=await env.DB.prepare('SELECT id,total FROM orders WHERE request_key=?').bind(key).first();if(old)return json(old);fail('An item changed while checking out. Refresh your basket and try again.',409);}
   ctx.waitUntil(sendPending(env));return json({id,total},201);
  }
+ if(p==='/api/quote'&&req.method==='POST'){
+  const b=await body(req),name=text(b.name,120),email=text(b.email,254).toLowerCase(),key=text(b.key,80),phone=text(b.phone,40),notes=text(b.notes,1500),address=text(b.address,600),fulfilment=text(b.fulfilment,20);
+  if(b.website||!name||!validEmail(email)||!(/^[a-zA-Z0-9-]{20,80}$/.test(key))||!['delivery','collection'].includes(fulfilment))fail('Please check your contact details and delivery preference.');
+  if(fulfilment==='delivery'&&!address)fail('Please add your delivery address so we can quote postage.');
+  const existing=await env.DB.prepare('SELECT id FROM quote_requests WHERE request_key=?').bind(key).first();if(existing)return json({id:existing.id,kind:'quote'});
+  if(!Array.isArray(b.items)||!b.items.length||b.items.length>20)fail('Please check your cart.');
+  const items=b.items.map(i=>({id:text(i?.id,100),quantity:Number(i?.quantity)}));
+  if(new Set(items.map(i=>i.id)).size!==items.length||items.some(i=>!Number.isInteger(i.quantity)||i.quantity<1||i.quantity>20))fail('Please check the item quantities.');
+  await limited(req,env,'quote',5);
+  const lines=[];for(const i of items){const product=await env.DB.prepare("SELECT * FROM products WHERE id=? AND status IN('active','showcase')").bind(i.id).first();if(!product)fail('An item is no longer listed. Remove it from your cart and try again.',409);lines.push(`${product.title} × ${i.quantity} — ${product.price?'listed unit price AUD '+(product.price/100).toFixed(2):'price to be confirmed'}`);}
+  const id='SAMZ-Q-'+new Date().toISOString().slice(0,10).replaceAll('-','')+'-'+crypto.randomUUID().slice(0,8).toUpperCase();
+  const message=`Quote request ${id}\n\n${lines.join('\n')}\n\nName: ${name}\nEmail: ${email}\nPhone: ${phone}\nDelivery preference: ${fulfilment}\n${address}\nNotes: ${notes}\n\nThis is a quote request. Prices, availability, timing and delivery costs will be confirmed before an order is agreed. No stock is reserved and no payment has been taken.`;
+  try{await env.DB.batch([env.DB.prepare('INSERT INTO quote_requests(id,request_key) VALUES(?,?)').bind(id,key),env.DB.prepare('INSERT INTO inquiries(id,name,email,message) VALUES(?,?,?,?)').bind(id,name,email,message),...mailStatements(env,id,[email,...admins(env)],'Samz Crafts · Quote request '+id,message)]);}catch(e){const old=await env.DB.prepare('SELECT id FROM quote_requests WHERE request_key=?').bind(key).first();if(old)return json({id:old.id,kind:'quote'});throw e;}
+  ctx.waitUntil(sendPending(env));return json({id,kind:'quote',email_ready:!!env.EMAIL_API_KEY&&!!env.EMAIL_FROM},201);
+ }
  if(p==='/api/contact'&&req.method==='POST'){
   const b=await body(req),name=text(b.name,120),email=text(b.email,254).toLowerCase(),message=text(b.message,2500);
   if(b.website||!name||!validEmail(email)||message.length<5)fail('Please add your name, email and a short message.');await limited(req,env,'contact',5);
@@ -76,7 +91,7 @@ async function handle(req,env,ctx){
  }
  if(p.startsWith('/images/')&&req.method==='GET'){
   const id=p.slice(8),staticAsset=ASSETS[id];if(staticAsset)return new Response(Uint8Array.from(atob(staticAsset),c=>c.charCodeAt(0)),{headers:{...headers,'Content-Type':'image/jpeg','Cache-Control':'public,max-age=86400'}});
-  const img=await env.DB.prepare('SELECT data,mime FROM images WHERE id=?').bind(id).first();if(!img)return new Response('Not found',{status:404});return new Response(new Uint8Array(img.data),{headers:{...headers,'Content-Type':img.mime,'Cache-Control':'public,max-age=86400'}});
+  const img=await env.DB.prepare('SELECT data,mime FROM images WHERE id=?').bind(id).first();if(!img)return new Response('Not found',{status:404});return new Response((img.data instanceof ArrayBuffer?img.data:new Uint8Array(img.data)),{headers:{...headers,'Content-Type':img.mime,'Cache-Control':'public,max-age=86400'}});
  }
  if(p==='/admin'||p.startsWith('/admin/')){
   const email=await admin(req,env);
