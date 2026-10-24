@@ -15,7 +15,7 @@ A mobile-responsive crochet storefront with an email-code protected maker studio
 - Every showcase listing has Add to cart. Carts containing unpriced items submit quote requests with unique SAMZ-Q references; no price, stock reservation or payment is implied. Priced-order checkout remains closed until stock/prices and an email sender are configured.
 - No card payment integration. Delivery costs and payment instructions are confirmed manually before payment.
 - Source repository: https://github.com/FaizanAwan1995/samzcraft (created by the owner).
-- Automated tests: 12 passing. Desktop live UI checked; contact form opens and dock hides/restores. Admin path reaches Cloudflare email-code login. Signed-in admin UI and phone viewport remain unverified.
+- Automated tests: 13 passing. Desktop live UI checked; contact form opens and dock hides/restores. Admin path reaches Cloudflare email-code login. Signed-in admin UI and phone viewport remain unverified.
 
 ## Finish setup
 
