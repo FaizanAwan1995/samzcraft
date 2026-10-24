@@ -1,0 +1,1 @@
+{"name":"samz-crafts","main":"deploy.mjs","compatibility_date":"2026-10-24","compatibility_flags":["nodejs_compat"],"workers_dev":true,"observability":{"enabled":true},"d1_databases":[{"binding":"DB","database_name":"samz-crafts-shop","database_id":"a8b00866-1888-44a9-bdda-787fbaefd839"}],"triggers":{"crons":["*/15 * * * *"]}}
