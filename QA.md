@@ -33,3 +33,12 @@
 - Confirm automatic push-event deployments separately from the successful manually initiated Git build.
 
 No existing product values or stock counts were overwritten by this review.
+
+## Yarn styling revision
+
+- Shared storefront and studio styles use woven textures, running stitches and decorative vector yarn illustrations. No remote fonts or new dependencies.
+- Primary button text: 7.50:1 contrast; body text: 11.27:1; secondary text: 5.64:1; placeholder text: 5.19:1. All exceed the WCAG 2.2 AA 4.5:1 text threshold for these tested pairs.
+- Form borders: 3.76:1; focus outline: 7.09:1 against the light surface.
+- Primary and icon controls have at least 44px touch targets. Reduced-motion and forced-colour preferences have explicit styles.
+- Mobile navigation remains accessible; inputs use 16px text; dialogs have programmatic accessible names; decorative SVGs are hidden from assistive technology.
+- These focused checks are not a full WCAG certification. Signed-in admin and actual phone visual checks remain necessary.
