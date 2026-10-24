@@ -22,3 +22,6 @@ dialog{width:min(570px,calc(100vw - 28px));max-height:90dvh;padding:30px;border:
 @media(forced-colors:active){.button,.product-row button[data-add],.filters button,.studio-tabs button,.product,.panel,.notice,.contact-dock{border:2px solid ButtonText;box-shadow:none}.button::after,.product-row button[data-add]::after,.product::after,.hero-art::after,.story-paper::after{display:none}.dock-icon{outline:0;border:1px solid LinkText}.status{border:1px solid CanvasText}}
 
 .studio-yarn{display:block;width:64px;height:64px;color:var(--rose);margin-bottom:16px}.studio-yarn svg{width:100%;height:100%}
+/* Keep focus stronger than decorative selected-state stitching. */
+.filters button:focus-visible,.studio-tabs button:focus-visible{outline:3px solid #315d6c;outline-offset:4px}
+@media(forced-colors:active){button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid Highlight!important;outline-offset:4px!important}}
