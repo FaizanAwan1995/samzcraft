@@ -18,9 +18,9 @@ const SamzPhotoAI=(()=>{
    active=pending;pending.timer=setTimeout(()=>fail(new Error('AI editing took too long. Try again or keep the original background.')),480000);
    try{
     worker ||=new Worker('/photo-ai-worker.js',{type:'module'});
-    worker.onerror=()=>fail(new Error('The free AI model could not load. Check your connection or keep the original background.'));
+    worker.onerror=event=>{console.warn('Samz photo worker:',event.message);fail(new Error('The free AI model could not load. Check your connection or keep the original background.'));};
     worker.onmessage=async({data})=>{
-     if(active!==pending)return;if(data.type==='progress'){onProgress(data.message);return;}if(data.type==='error'){fail(new Error(data.message));return;}if(data.type!=='result')return;
+     if(active!==pending)return;if(data.type==='progress'){onProgress(data.message);return;}if(data.type==='error'){console.warn('Samz photo AI:',data.detail);fail(new Error(data.message));return;}if(data.type!=='result')return;
      try{
       if(!Number.isInteger(data.width)||!Number.isInteger(data.height)||data.width<1||data.height<1||data.width>4096||data.height>4096||![1,3,4].includes(data.channels))throw new Error('The AI returned an unreadable mask.');
       const bytes=new Uint8Array(data.mask);if(bytes.length!==data.width*data.height*data.channels)throw new Error('Incomplete AI mask.');
