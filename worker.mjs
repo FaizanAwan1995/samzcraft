@@ -1,4 +1,4 @@
-import { INDEX, ADMIN, STYLE, APP, STUDIO, PHOTO, ASSETS } from './bundle.mjs';
+import { INDEX, ADMIN, STYLE, APP, STUDIO, PHOTO, PHOTO_AI, PHOTO_AI_WORKER, PHOTO_TOOL, PHOTO_TOOL_APP, PHOTO_CREDITS, ASSETS } from './bundle.mjs';
 import { SITE, productPath, renderSeo, sitemapXml, infoPages, collections } from './seo.mjs';
 const admins=env=>String(env.ADMIN_EMAILS||'').split(',').map(s=>s.trim().toLowerCase()).filter(Boolean);
 const ISSUER='https://samz-crafts-admin.cloudflareaccess.com';
@@ -126,6 +126,8 @@ async function handle(req,env,ctx){
   fail('Not found',404);
  }
  if(req.method!=='GET'&&req.method!=='HEAD')fail('Method not allowed',405);
+ if(p==='/photo-ai-worker.js')return new Response(req.method==='HEAD'?null:PHOTO_AI_WORKER,{headers:{...headers,'Content-Type':'text/javascript;charset=UTF-8','Cache-Control':'no-cache','X-Robots-Tag':'noindex','Content-Security-Policy':"default-src 'none'; script-src 'self' https://cdn.jsdelivr.net 'wasm-unsafe-eval'; connect-src 'self' https://cdn.jsdelivr.net https://huggingface.co https://*.hf.co https://*.huggingface.co; worker-src 'none'"}});
+ if(p==='/photo-studio/'||p==='/photo-credits/')return new Response(req.method==='HEAD'?null:p==='/photo-studio/'?PHOTO_TOOL:PHOTO_CREDITS,{headers:{...headers,'Content-Type':'text/html;charset=UTF-8','Cache-Control':'no-cache','X-Robots-Tag':'noindex'}});
  if(p==='/robots.txt')return new Response(req.method==='HEAD'?null:'User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/\nSitemap: '+SITE+'/sitemap.xml\n',{headers:{...headers,'Content-Type':'text/plain;charset=UTF-8','Cache-Control':'public,max-age=300'}});
  if(p==='/'||p==='/sitemap.xml'||p.startsWith('/products/')||p.startsWith('/collections/')||Object.hasOwn(infoPages,p)){
   const products=(await env.DB.prepare("SELECT * FROM products WHERE status IN('active','showcase') ORDER BY created_at DESC").all()).results;
@@ -135,7 +137,7 @@ async function handle(req,env,ctx){
   const page=renderSeo(INDEX,p,products,settings);
   if(page)return new Response(req.method==='HEAD'?null:page,{headers:{...headers,'Content-Type':'text/html;charset=UTF-8','Cache-Control':'no-cache'}});
  }
- const asset={'/style.css':[STYLE,'text/css'],'/app.js':[APP,'text/javascript'],'/studio.js':[STUDIO,'text/javascript'],'/photo.js':[PHOTO,'text/javascript']}[p];
+ const asset={'/style.css':[STYLE,'text/css'],'/app.js':[APP,'text/javascript'],'/studio.js':[STUDIO,'text/javascript'],'/photo.js':[PHOTO,'text/javascript'],'/photo-ai.js':[PHOTO_AI,'text/javascript'],'/photo-tool.js':[PHOTO_TOOL_APP,'text/javascript']}[p];
 
  if(!asset)return new Response(req.method==='HEAD'?null:'<!doctype html><html lang="en-AU"><meta name="robots" content="noindex"><title>Page not found | Samz Crafts</title><h1>That piece of the thread is missing.</h1><p><a href="/">Browse Samz Crafts</a> or <a href="/custom-crochet-orders/">ask about a custom piece</a>.</p></html>',{status:404,headers:{...headers,'Content-Type':'text/html;charset=UTF-8','X-Robots-Tag':'noindex'}});return new Response(req.method==='HEAD'?null:asset[0],{headers:{...headers,'Content-Type':asset[1]+';charset=UTF-8','Cache-Control':'no-cache'}});
 }

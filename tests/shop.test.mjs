@@ -52,3 +52,10 @@ test('prepared photo upload retains original atomically and does not publish bef
  const invalid=req('/admin/api/upload',{data:Buffer.from([255,216,255]).toString('base64'),original:'invalid'});invalid.headers.set('Cf-Access-Jwt-Assertion',token);assert.equal((await worker.fetch(invalid,e,ctx)).status,400);assert.equal(e.sql.prepare('SELECT count(*) n FROM images').get().n,2);
  }finally{globalThis.fetch=previousFetch;}
 });
+
+test('free AI editor is isolated from public shop scripts and only its worker permits pinned remote inference dependencies',async()=>{
+ const e=env();const home=await (await worker.fetch(req('/'),e,ctx)).text();assert.doesNotMatch(home,/photo-ai\.js|photo-ai-worker\.js|transformers/);
+ const tool=await worker.fetch(req('/photo-studio/'),e,ctx);assert.equal(tool.status,200);assert.equal(tool.headers.get('X-Robots-Tag'),'noindex');assert.match(await tool.text(),/Nothing is published from this page/);
+ const ai=await worker.fetch(req('/photo-ai-worker.js'),e,ctx);assert.equal(ai.status,200);assert.match(ai.headers.get('Content-Security-Policy'),/wasm-unsafe-eval/);assert.doesNotMatch(ai.headers.get('Content-Security-Policy'),/'unsafe-eval'/);assert.match(await ai.text(),/de15b22ba131738a16dff04aab8bdf8dc32e3ac1/);
+ const credits=await worker.fetch(req('/photo-credits/'),e,ctx);assert.match(await credits.text(),/MIT/);
+});

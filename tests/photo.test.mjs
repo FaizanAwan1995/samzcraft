@@ -12,3 +12,7 @@ test('gentle photo lift preserves black and white, neutral colours and tonal ord
 test('photo encoding stays inside upload limit or fails rather than uploading an oversized file',()=>{
  const qualities=[];const canvas={toDataURL(_mime,quality){qualities.push(quality);return 'data:image/jpeg;base64,'+'a'.repeat(quality>.72?650000:600000);}};assert.ok(scope.encodePhoto(canvas).length<=640000);assert.equal(qualities.length,3);assert.throws(()=>scope.encodePhoto({toDataURL:()=> 'data:image/jpeg;base64,'+'a'.repeat(650000)}),/too detailed/);
 });
+
+test('AI cutout bounds preserve item margins and reject masks that lose or retain the entire background',()=>{
+ const context=vm.createContext({});vm.runInContext(fs.readFileSync(new URL('../photo-ai.js',import.meta.url),'utf8'),context);const width=100,height=100,pixels=new Uint8ClampedArray(width*height*4);for(let y=20;y<80;y++)for(let x=30;x<70;x++)pixels[(y*width+x)*4+3]=255;const result=context.foregroundBounds(pixels,width,height);assert.deepEqual({...result},{x:27,y:17,width:46,height:66});assert.throws(()=>context.foregroundBounds(new Uint8ClampedArray(width*height*4),width,height),/separate/);const opaque=new Uint8ClampedArray(width*height*4).fill(255);assert.throws(()=>context.foregroundBounds(opaque,width,height),/separate/);
+});
