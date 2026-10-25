@@ -14,9 +14,9 @@ function encodePhoto(canvas){
 function originalPhoto(image){
  const scale=Math.min(1,1200/Math.max(image.naturalWidth,image.naturalHeight)),canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));const context=canvas.getContext('2d');if(!context)throw new Error('Photo editing is unavailable in this browser.');context.fillStyle='#fffdf8';context.fillRect(0,0,canvas.width,canvas.height);context.drawImage(image,0,0,canvas.width,canvas.height);return encodePhoto(canvas);
 }
-function preparePhoto(image,{rotation=0,enhance=true}={}){
+function preparePhoto(image,{rotation=0,enhance=true,shadow=false}={}){
  const layout=photoLayout(image.naturalWidth,image.naturalHeight,rotation),canvas=document.createElement('canvas');canvas.width=layout.frameWidth;canvas.height=layout.frameHeight;const context=canvas.getContext('2d',{willReadFrequently:true});if(!context)throw new Error('Photo editing is unavailable in this browser.');
- context.fillStyle='#fcf7ef';context.fillRect(0,0,canvas.width,canvas.height);context.save();context.translate(canvas.width/2,canvas.height/2);context.rotate(layout.turn*Math.PI/2);context.drawImage(image,-layout.drawWidth/2,-layout.drawHeight/2,layout.drawWidth,layout.drawHeight);context.restore();
+ context.fillStyle='#fcf7ef';context.fillRect(0,0,canvas.width,canvas.height);context.save();context.translate(canvas.width/2,canvas.height/2);context.rotate(layout.turn*Math.PI/2);if(shadow){context.shadowColor='rgba(64,51,55,0.16)';context.shadowBlur=22;context.shadowOffsetY=12;}context.drawImage(image,-layout.drawWidth/2,-layout.drawHeight/2,layout.drawWidth,layout.drawHeight);context.restore();
  // Gentle tonal lift on the photograph only; keep hue, stitches and the matte unchanged.
  if(enhance){const width=Math.round(layout.turn%2?layout.drawHeight:layout.drawWidth),height=Math.round(layout.turn%2?layout.drawWidth:layout.drawHeight),x=Math.max(0,Math.round((canvas.width-width)/2)),y=Math.max(0,Math.round((canvas.height-height)/2));const pixels=context.getImageData(x,y,width,height);for(let i=0;i<pixels.data.length;i+=4){pixels.data[i]=photoTone(pixels.data[i]);pixels.data[i+1]=photoTone(pixels.data[i+1]);pixels.data[i+2]=photoTone(pixels.data[i+2]);}context.putImageData(pixels,x,y);}
  return encodePhoto(canvas);

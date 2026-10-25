@@ -1,6 +1,6 @@
 'use strict';
 const tool=id=>document.getElementById(id);let toolImage=null,toolCutout=null,toolBusy=false;
-function toolRender(){if(!toolImage)return;const output=preparePhoto(tool('tool-cutout').checked&&toolCutout?toolCutout:toolImage);tool('tool-result').src=output;tool('tool-result').hidden=false;tool('tool-download').href=output;tool('tool-download').hidden=false;}
+function toolRender(){if(!toolImage)return;const output=preparePhoto(tool('tool-cutout').checked&&toolCutout?toolCutout:toolImage,{shadow:tool('tool-cutout').checked&&!!toolCutout});tool('tool-result').src=output;tool('tool-result').hidden=false;tool('tool-download').href=output;tool('tool-download').hidden=false;}
 async function toolOpen(source){if(toolBusy)return;try{const image=new Image();image.src=source;await image.decode();toolImage=image;toolCutout=null;tool('tool-cutout').checked=false;tool('tool-cutout').disabled=true;tool('tool-original').src=source;tool('tool-original').hidden=false;tool('tool-remove').disabled=false;toolRender();tool('tool-status').textContent='Photo ready. Remove the background or download the framed original.';}catch{tool('tool-status').textContent='This photo could not open. Try JPEG, PNG or WebP.';}}
 tool('tool-file').onchange=async event=>{const file=event.target.files?.[0];if(!file)return;const url=URL.createObjectURL(file);await toolOpen(url);if(toolImage)tool('tool-original').src=originalPhoto(toolImage);URL.revokeObjectURL(url);};
 tool('tool-example').onclick=()=>toolOpen('/images/26cb6ca6-d570-43a3-8486-43d3f6bba111.jpg');

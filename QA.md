@@ -54,8 +54,8 @@ No existing product values or stock counts were overwritten by this review.
 
 ## Free browser AI photo editor
 
-- BiRefNet Lite (MIT) model revision de15b22ba131738a16dff04aab8bdf8dc32e3ac1, Transformers.js 3.8.1 and ONNX Runtime. No billable inference API, API key, GPU hosting or image upload to an AI provider.
-- Model and runtime files download from Hugging Face/jsDelivr when editing starts, not when customers browse. Initial download is approximately 115 MB (fp16 WebGPU with shader-f16) or 224 MB (fp32 WASM). Cache availability depends on the browser.
+- U²-Net-P (Apache-2.0) ONNX model from rembg, served through a pinned mirror with SHA-256 verified against the original release, plus ONNX Runtime Web 1.22.0. The larger BiRefNet model failed during inference in the test browser and was replaced. No billable inference API, API key, GPU hosting or image upload to an AI provider.
+- Model and runtime files download from Hugging Face/jsDelivr when editing starts, not when customers browse. Initial model download is approximately 5 MB, plus runtime files. Inference runs through single-threaded WASM. Cache availability depends on the browser.
 - Inference uses a dedicated module worker. Only its response permits remote dependency downloads and WebAssembly compilation; storefront/admin document CSP stays unchanged. No unsafe-eval or paid fallback.
 - Main thread keeps the source product pixels, applies the returned alpha mask, trims empty margins and uses the existing cream-frame/compression workflow. Preview toggle restores the original background. Original web-resolution photo retention remains in place.
 - Cancel terminates the inference worker; timeout/failure retains the normal prepared photo. Mask coverage checks reject empty or implausibly full masks. Public /photo-studio/ is a noindex local-only test/download tool and cannot publish listings.
