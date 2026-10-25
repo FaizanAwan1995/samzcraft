@@ -1,9 +1,10 @@
 import { INDEX, ADMIN, STYLE, APP, STUDIO, ASSETS } from './bundle.mjs';
+import { SITE, productPath, renderSeo, sitemapXml, infoPages, collections } from './seo.mjs';
 const admins=env=>String(env.ADMIN_EMAILS||'').split(',').map(s=>s.trim().toLowerCase()).filter(Boolean);
 const ISSUER='https://samz-crafts-admin.cloudflareaccess.com';
 const AUD='31460c46af36ea6a764abf288efc919dff8d8da37448de958e6d597cf82ac339';
 const headers={'X-Content-Type-Options':'nosniff','Referrer-Policy':'strict-origin-when-cross-origin','X-Frame-Options':'DENY','Permissions-Policy':'camera=(self), microphone=(), geolocation=()','Content-Security-Policy':"default-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"};
-const json=(data,status=200)=>Response.json(data,{status,headers:{...headers,'Cache-Control':'no-store'}});
+const json=(data,status=200)=>Response.json(data,{status,headers:{...headers,'Cache-Control':'no-store','X-Robots-Tag':'noindex, nofollow'}});
 const fail=(message,status=400)=>{throw Object.assign(new Error(message),{status});};
 const text=(v,max=200)=>typeof v==='string'?v.trim().slice(0,max):'';
 const validEmail=v=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)&&v.length<=254;
@@ -48,6 +49,11 @@ async function sendPending(env){
 async function log(env,email,action){await env.DB.prepare('INSERT INTO activity(id,email,action) VALUES(?,?,?)').bind(crypto.randomUUID(),email,action).run();}
 async function handle(req,env,ctx){
  const u=new URL(req.url),p=u.pathname;
+ // Consolidate public URLs without redirecting POST bodies or admin sessions.
+ const publicRead=['GET','HEAD'].includes(req.method)&&!p.startsWith('/admin')&&!p.startsWith('/api/');
+ if(publicRead&&['www.samzcrafts.com','samz-crafts.faizan-awan.workers.dev','samzcrafts.com'].includes(u.hostname)&&(u.origin!==SITE))return Response.redirect(SITE+p+u.search,301);
+ if(publicRead&&(Object.hasOwn(infoPages,p+'/')||collections.some(c=>p==='/collections/'+c.key)))return Response.redirect(SITE+p+'/',301);
+
  if(!['GET','HEAD'].includes(req.method)&&req.headers.get('Origin')!==u.origin)fail('Please submit from the shop website.',403);
  if(p==='/api/catalog'&&req.method==='GET'){const settings=await config(env);return json({products:(await env.DB.prepare("SELECT * FROM products WHERE status IN('active','showcase') ORDER BY created_at DESC").all()).results,settings:{announcement:settings.announcement,story:settings.story,whatsapp:settings.whatsapp,messenger:settings.messenger,checkout_enabled:settings.checkout_enabled==='true'&&!!env.EMAIL_API_KEY&&!!env.EMAIL_FROM}});}
  if(p==='/api/order'&&req.method==='POST'){
@@ -90,12 +96,12 @@ async function handle(req,env,ctx){
   const id='ENQ-'+crypto.randomUUID().slice(0,8).toUpperCase();await env.DB.batch([env.DB.prepare('INSERT INTO inquiries(id,name,email,message) VALUES(?,?,?,?)').bind(id,name,email,message),...mailStatements(env,id,admins(env),'Samz Crafts · New enquiry '+id,`From ${name} (${email})\n\n${message}`)]);ctx.waitUntil(sendPending(env));return json({id,email_ready:!!env.EMAIL_API_KEY&&!!env.EMAIL_FROM},201);
  }
  if(p.startsWith('/images/')&&req.method==='GET'){
-  const id=p.slice(8),staticAsset=ASSETS[id];if(staticAsset)return new Response(Uint8Array.from(atob(staticAsset),c=>c.charCodeAt(0)),{headers:{...headers,'Content-Type':'image/jpeg','Cache-Control':'public,max-age=86400'}});
+  const id=p.slice(8),staticAsset=ASSETS[id];if(staticAsset)return new Response(Uint8Array.from(atob(staticAsset),c=>c.charCodeAt(0)),{headers:{...headers,'Content-Type':id.endsWith('.png')?'image/png':'image/jpeg','Cache-Control':'public,max-age=86400'}});
   const img=await env.DB.prepare('SELECT data,mime FROM images WHERE id=?').bind(id).first();if(!img)return new Response('Not found',{status:404});return new Response((img.data instanceof ArrayBuffer?img.data:new Uint8Array(img.data)),{headers:{...headers,'Content-Type':img.mime,'Cache-Control':'public,max-age=86400'}});
  }
  if(p==='/admin'||p.startsWith('/admin/')){
   const email=await admin(req,env);
-  if(req.method==='GET'&&(p==='/admin'||p==='/admin/'))return new Response(ADMIN,{headers:{...headers,'Content-Type':'text/html;charset=UTF-8','Cache-Control':'no-store'}});
+  if(req.method==='GET'&&(p==='/admin'||p==='/admin/'))return new Response(ADMIN,{headers:{...headers,'Content-Type':'text/html;charset=UTF-8','Cache-Control':'no-store','X-Robots-Tag':'noindex, nofollow'}});
   if(p==='/admin/api/data'&&req.method==='GET')return json({email,products:(await env.DB.prepare('SELECT * FROM products ORDER BY created_at DESC').all()).results,orders:(await env.DB.prepare('SELECT * FROM orders ORDER BY created_at DESC LIMIT 200').all()).results,items:(await env.DB.prepare('SELECT * FROM order_items WHERE order_id IN(SELECT id FROM orders ORDER BY created_at DESC LIMIT 200)').all()).results,inquiries:(await env.DB.prepare('SELECT * FROM inquiries ORDER BY created_at DESC LIMIT 100').all()).results,outbox:(await env.DB.prepare('SELECT id,ref,recipient,subject,status,attempts,last_error FROM outbox ORDER BY created_at DESC LIMIT 200').all()).results,activity:(await env.DB.prepare('SELECT * FROM activity ORDER BY created_at DESC LIMIT 50').all()).results,settings:await config(env),email_ready:!!env.EMAIL_API_KEY&&!!env.EMAIL_FROM});
   if(p==='/admin/api/product'&&req.method==='POST'){
    const b=await body(req),id=text(b.id,100)||crypto.randomUUID(),title=text(b.title,140),description=text(b.description,2500),category=text(b.category,60)||'Accessories',status=text(b.status,20),stock=Number(b.stock),price=b.price===null||b.price===''?null:Number(b.price),image=text(b.image,150),source=text(b.source,300);
@@ -118,8 +124,17 @@ async function handle(req,env,ctx){
   fail('Not found',404);
  }
  if(req.method!=='GET'&&req.method!=='HEAD')fail('Method not allowed',405);
- const asset={'/': [INDEX,'text/html'],'/style.css':[STYLE,'text/css'],'/app.js':[APP,'text/javascript'],'/studio.js':[STUDIO,'text/javascript']}[p];
- if(p==='/robots.txt')return new Response('User-agent: *\nDisallow: /admin\n',{headers:{...headers,'Content-Type':'text/plain'}});
- if(!asset)return new Response('Page not found',{status:404,headers});return new Response(req.method==='HEAD'?null:asset[0],{headers:{...headers,'Content-Type':asset[1]+';charset=UTF-8','Cache-Control':'no-cache'}});
+ if(p==='/robots.txt')return new Response(req.method==='HEAD'?null:'User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/\nSitemap: '+SITE+'/sitemap.xml\n',{headers:{...headers,'Content-Type':'text/plain;charset=UTF-8','Cache-Control':'public,max-age=300'}});
+ if(p==='/'||p==='/sitemap.xml'||p.startsWith('/products/')||p.startsWith('/collections/')||Object.hasOwn(infoPages,p)){
+  const products=(await env.DB.prepare("SELECT * FROM products WHERE status IN('active','showcase') ORDER BY created_at DESC").all()).results;
+  if(p==='/sitemap.xml')return new Response(req.method==='HEAD'?null:sitemapXml(products),{headers:{...headers,'Content-Type':'application/xml;charset=UTF-8','Cache-Control':'no-cache'}});
+  if(p.startsWith('/products/')){const suffix=p.slice('/products/'.length).replace(/\/$/,'');const pos=suffix.lastIndexOf('--');let id='';try{id=decodeURIComponent(suffix.slice(pos+2));}catch{}const item=pos>=0?products.find(x=>x.id===id):null;if(item&&p!==productPath(item))return Response.redirect(SITE+productPath(item),301);}
+  const settings=await config(env);settings.checkout_enabled=settings.checkout_enabled==='true'&&!!env.EMAIL_API_KEY&&!!env.EMAIL_FROM;
+  const page=renderSeo(INDEX,p,products,settings);
+  if(page)return new Response(req.method==='HEAD'?null:page,{headers:{...headers,'Content-Type':'text/html;charset=UTF-8','Cache-Control':'no-cache'}});
+ }
+ const asset={'/style.css':[STYLE,'text/css'],'/app.js':[APP,'text/javascript'],'/studio.js':[STUDIO,'text/javascript']}[p];
+
+ if(!asset)return new Response(req.method==='HEAD'?null:'<!doctype html><html lang="en-AU"><meta name="robots" content="noindex"><title>Page not found | Samz Crafts</title><h1>That piece of the thread is missing.</h1><p><a href="/">Browse Samz Crafts</a> or <a href="/custom-crochet-orders/">ask about a custom piece</a>.</p></html>',{status:404,headers:{...headers,'Content-Type':'text/html;charset=UTF-8','X-Robots-Tag':'noindex'}});return new Response(req.method==='HEAD'?null:asset[0],{headers:{...headers,'Content-Type':asset[1]+';charset=UTF-8','Cache-Control':'no-cache'}});
 }
 export default {async fetch(req,env,ctx){try{return await handle(req,env,ctx);}catch(e){if(!e.status)console.error(JSON.stringify({event:'request_failed',path:new URL(req.url).pathname,error:e.name}));return json({error:e.status?e.message:'Something went wrong. Please try again.'},e.status||500);}},async scheduled(event,env,ctx){ctx.waitUntil((async()=>{await env.DB.prepare('DELETE FROM rate_limits WHERE expires<?').bind(Date.now()).run();await sendPending(env);})());}};
