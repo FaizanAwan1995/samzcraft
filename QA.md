@@ -42,3 +42,12 @@ No existing product values or stock counts were overwritten by this review.
 - Primary and icon controls have at least 44px touch targets. Reduced-motion and forced-colour preferences have explicit styles.
 - Mobile navigation remains accessible; inputs use 16px text; dialogs have programmatic accessible names; decorative SVGs are hidden from assistive technology.
 - These focused checks are not a full WCAG certification. Signed-in admin and actual phone visual checks remain necessary.
+
+## Product photo preparation and framing
+
+- Product cards now establish a 4:5 frame and absolutely position a contained image inside it. Intrinsic HTML image dimensions cannot force tall mobile grid tracks; full photos remain visible.
+- Camera/gallery selections prepare a 1200×1500 cream-framed JPEG locally. Gentle tonal correction can be disabled and the photo rotated; no AI-generated details, subject cutout or background replacement is performed.
+- Saving uploads the prepared photo plus an unenhanced copy at web resolution in one transaction. Uploading alone does not change a listing. A separate image_sources mapping retains the original for later preparation without repeatedly applying correction.
+- Existing uploaded files remain untouched. Their cards benefit immediately from corrected framing. Use “Prepare saved photo” when editing an existing listing to preview and save the same treatment.
+- D1 migration: additive CREATE TABLE IF NOT EXISTS image_sources. Existing listings, images and orders are preserved.
+- Automated coverage includes portrait/landscape/rotated fit geometry, bounded tonal lift, compression limits, authenticated upload/source retrieval, atomic source retention and no publication before listing save. Full signed-in physical-phone camera testing remains an owner check.

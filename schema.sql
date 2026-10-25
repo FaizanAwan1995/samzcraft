@@ -23,3 +23,6 @@ CREATE TABLE IF NOT EXISTS rate_limits(key TEXT PRIMARY KEY,hits INTEGER NOT NUL
 CREATE TABLE IF NOT EXISTS activity(id TEXT PRIMARY KEY,email TEXT NOT NULL,action TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
 
 CREATE TABLE IF NOT EXISTS quote_requests(id TEXT PRIMARY KEY,request_key TEXT UNIQUE NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+
+-- Retain an unenhanced, web-resolution source for prepared listing photos.
+CREATE TABLE IF NOT EXISTS image_sources(image_id TEXT PRIMARY KEY REFERENCES images(id),original_id TEXT NOT NULL REFERENCES images(id));

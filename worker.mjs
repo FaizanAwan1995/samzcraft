@@ -1,4 +1,4 @@
-import { INDEX, ADMIN, STYLE, APP, STUDIO, ASSETS } from './bundle.mjs';
+import { INDEX, ADMIN, STYLE, APP, STUDIO, PHOTO, ASSETS } from './bundle.mjs';
 import { SITE, productPath, renderSeo, sitemapXml, infoPages, collections } from './seo.mjs';
 const admins=env=>String(env.ADMIN_EMAILS||'').split(',').map(s=>s.trim().toLowerCase()).filter(Boolean);
 const ISSUER='https://samz-crafts-admin.cloudflareaccess.com';
@@ -109,8 +109,10 @@ async function handle(req,env,ctx){
    if(image&&!/^\/images\/[a-zA-Z0-9_.-]+$/.test(image))fail('Please upload a product photo.');if(source&&!/^https:\/\/www.instagram.com\/samz_crafts\//.test(source))fail('Use a Samz Crafts Instagram link.');
    await env.DB.prepare('INSERT INTO products(id,title,description,category,price,stock,status,image,source) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,description=excluded.description,category=excluded.category,price=excluded.price,stock=excluded.stock,status=excluded.status,image=excluded.image,source=excluded.source').bind(id,title,description,category,price,stock,status,image||null,source||null).run();await log(env,email,'Saved listing: '+title);return json({id});
   }
+  if(p==='/admin/api/photo-source'&&req.method==='GET'){const image=u.searchParams.get('image')||'';if(!/^\/images\/[a-zA-Z0-9_.-]+$/.test(image))fail('Invalid photo path');const source=await env.DB.prepare('SELECT original_id FROM image_sources WHERE image_id=?').bind(image.slice(8)).first();return json({image:source?'/images/'+source.original_id:image});}
   if(p==='/admin/api/upload'&&req.method==='POST'){
-   const b=await body(req,700000);if(typeof b.data!=='string'||b.data.length>650000)fail('Please choose a smaller photo.');let data;try{data=un64(b.data);}catch{fail('Invalid photo');}if(data[0]!==255||data[1]!==216||data[2]!==255)fail('Please upload a JPEG photo.');const id=crypto.randomUUID()+'.jpg';await env.DB.prepare('INSERT INTO images(id,data) VALUES(?,?)').bind(id,data.buffer).run();await log(env,email,'Uploaded photo');return json({image:'/images/'+id});
+   const b=await body(req,1400000);const decode=value=>{if(typeof value!=='string'||value.length>650000)fail('Please choose a smaller photo.');let data;try{data=un64(value);}catch{fail('Invalid photo');}if(data[0]!==255||data[1]!==216||data[2]!==255)fail('Please upload a JPEG photo.');return data;};const data=decode(b.data),original=b.original?decode(b.original):null,id=crypto.randomUUID()+'.jpg',originalId=original?crypto.randomUUID()+'.jpg':null;
+   const writes=[env.DB.prepare('INSERT INTO images(id,data) VALUES(?,?)').bind(id,data.buffer)];if(original)writes.push(env.DB.prepare('INSERT INTO images(id,data) VALUES(?,?)').bind(originalId,original.buffer),env.DB.prepare('INSERT INTO image_sources(image_id,original_id) VALUES(?,?)').bind(id,originalId));await env.DB.batch(writes);await log(env,email,'Uploaded prepared photo');return json({image:'/images/'+id});
   }
   if(p==='/admin/api/settings'&&req.method==='POST'){
    const b=await body(req),whatsapp=text(b.whatsapp,16).replace(/[ +()-]/g,''),messenger=text(b.messenger,80),story=text(b.story,1800),announcement=text(b.announcement,150),enabled=b.checkout_enabled===true;
@@ -133,7 +135,7 @@ async function handle(req,env,ctx){
   const page=renderSeo(INDEX,p,products,settings);
   if(page)return new Response(req.method==='HEAD'?null:page,{headers:{...headers,'Content-Type':'text/html;charset=UTF-8','Cache-Control':'no-cache'}});
  }
- const asset={'/style.css':[STYLE,'text/css'],'/app.js':[APP,'text/javascript'],'/studio.js':[STUDIO,'text/javascript']}[p];
+ const asset={'/style.css':[STYLE,'text/css'],'/app.js':[APP,'text/javascript'],'/studio.js':[STUDIO,'text/javascript'],'/photo.js':[PHOTO,'text/javascript']}[p];
 
  if(!asset)return new Response(req.method==='HEAD'?null:'<!doctype html><html lang="en-AU"><meta name="robots" content="noindex"><title>Page not found | Samz Crafts</title><h1>That piece of the thread is missing.</h1><p><a href="/">Browse Samz Crafts</a> or <a href="/custom-crochet-orders/">ask about a custom piece</a>.</p></html>',{status:404,headers:{...headers,'Content-Type':'text/html;charset=UTF-8','X-Robots-Tag':'noindex'}});return new Response(req.method==='HEAD'?null:asset[0],{headers:{...headers,'Content-Type':asset[1]+';charset=UTF-8','Cache-Control':'no-cache'}});
 }
