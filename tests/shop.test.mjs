@@ -70,3 +70,13 @@ test('free AI editor is isolated from public shop scripts and only its worker pe
  const ai=await worker.fetch(req('/photo-ai-worker.js'),e,ctx);assert.equal(ai.status,200);assert.match(ai.headers.get('Content-Security-Policy'),/wasm-unsafe-eval/);assert.doesNotMatch(ai.headers.get('Content-Security-Policy'),/'unsafe-eval'/);assert.match(await ai.text(),/309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8/);
  const credits=await worker.fetch(req('/photo-credits/'),e,ctx);assert.match(await credits.text(),/MIT/);
 });
+
+ test('legacy admin navigation uses the primary domain while its static assets remain same-origin',async()=>{
+ const e=env();e.sql.prepare('INSERT INTO images(id,data) VALUES(?,?)').run('legacy.jpg',new Uint8Array([255,216,255]));
+ for(const host of ['samz-crafts.faizan-awan.workers.dev','www.samzcrafts.com']){
+  for(const path of ['/admin','/admin/']){const r=await worker.fetch(new Request('https://'+host+path+'?from=bookmark'),e,ctx);assert.equal(r.status,302);assert.equal(r.headers.get('Location'),'https://samzcrafts.com/admin?from=bookmark');assert.equal(r.headers.get('Cache-Control'),'no-store');}
+  for(const path of ['/style.css','/studio.js','/photo.js','/photo-ai.js','/photo-ai-worker.js','/images/samz-logo.png','/images/legacy.jpg']){const r=await worker.fetch(new Request('https://'+host+path),e,ctx);assert.equal(r.status,200,path);assert.equal(r.headers.has('Location'),false,path);assert.match(r.headers.get('Content-Security-Policy'),/default-src/);}
+  assert.equal((await worker.fetch(new Request('https://'+host+'/admin/api/data'),e,ctx)).status,401);
+ }
+ assert.equal((await worker.fetch(new Request('https://samzcrafts.com/admin'),e,ctx)).status,401);
+ });

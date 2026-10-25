@@ -50,9 +50,12 @@ async function sendPending(env){
 async function log(env,email,action){await env.DB.prepare('INSERT INTO activity(id,email,action) VALUES(?,?,?)').bind(crypto.randomUUID(),email,action).run();}
 async function handle(req,env,ctx){
  const u=new URL(req.url),p=u.pathname;
- // Consolidate public URLs without redirecting POST bodies or admin sessions.
- const publicRead=['GET','HEAD'].includes(req.method)&&!p.startsWith('/admin')&&!p.startsWith('/api/');
- if(publicRead&&['www.samzcrafts.com','samz-crafts.faizan-awan.workers.dev','samzcrafts.com'].includes(u.hostname)&&(u.origin!==SITE))return Response.redirect(SITE+p+u.search,301);
+ // Keep assets same-origin: legacy admin pages use a strict self-only CSP.
+ const read=['GET','HEAD'].includes(req.method),alias=['www.samzcrafts.com','samz-crafts.faizan-awan.workers.dev'].includes(u.hostname);
+ if(read&&alias&&(p==='/admin'||p==='/admin/'))return new Response(null,{status:302,headers:{...headers,Location:SITE+'/admin'+u.search,'Cache-Control':'no-store'}});
+ const staticResource=p.startsWith('/images/')||['/style.css','/app.js','/studio.js','/photo.js','/photo-ai.js','/photo-ai-worker.js','/photo-tool.js'].includes(p);
+ const publicRead=read&&!staticResource&&!p.startsWith('/admin')&&!p.startsWith('/api/');
+ if(publicRead&&alias)return Response.redirect(SITE+p+u.search,301);
  if(publicRead&&(Object.hasOwn(infoPages,p+'/')||collections.some(c=>p==='/collections/'+c.key)))return Response.redirect(SITE+p+'/',301);
 
  if(!['GET','HEAD'].includes(req.method)&&req.headers.get('Origin')!==u.origin)fail('Please submit from the shop website.',403);
