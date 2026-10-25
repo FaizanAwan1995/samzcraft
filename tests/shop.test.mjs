@@ -50,6 +50,17 @@ test('prepared photo upload retains original atomically and does not publish bef
  const upload=req('/admin/api/upload',{data:Buffer.from([255,216,255,1]).toString('base64'),original:Buffer.from([255,216,255,2]).toString('base64')});upload.headers.set('Cf-Access-Jwt-Assertion',token);const r=await worker.fetch(upload,e,ctx);assert.equal(r.status,200);const b=await r.json();assert.match(b.image,/^\/images\/.*\.jpg$/);assert.equal(e.sql.prepare('SELECT count(*) n FROM images').get().n,2);assert.equal(e.sql.prepare("SELECT image FROM products WHERE id='one'").get().image,'/images/existing.jpg');
  const source=req('/admin/api/photo-source?image='+encodeURIComponent(b.image));source.headers.set('Cf-Access-Jwt-Assertion',token);const result=await worker.fetch(source,e,ctx);const original=await result.json();assert.notEqual(original.image,b.image);assert.equal(e.sql.prepare('SELECT original_id FROM image_sources WHERE image_id=?').get(b.image.slice(8)).original_id,original.image.slice(8));
  const invalid=req('/admin/api/upload',{data:Buffer.from([255,216,255]).toString('base64'),original:'invalid'});invalid.headers.set('Cf-Access-Jwt-Assertion',token);assert.equal((await worker.fetch(invalid,e,ctx)).status,400);assert.equal(e.sql.prepare('SELECT count(*) n FROM images').get().n,2);
+
+ const photos=[b.image];for(let i=0;i<2;i++){const next=req('/admin/api/upload',{data:Buffer.from([255,216,255,i+3]).toString('base64')});next.headers.set('Cf-Access-Jwt-Assertion',token);photos.push((await (await worker.fetch(next,e,ctx)).json()).image);}
+ const listing={id:'one',title:'Pouch',category:'Bags',description:'Crochet pouch',price:null,stock:0,status:'showcase',images:photos};
+ const save=async data=>{const request=req('/admin/api/product',data);request.headers.set('Cf-Access-Jwt-Assertion',token);return worker.fetch(request,e,ctx);};
+ assert.equal((await save(listing)).status,200);
+ let catalog=await (await worker.fetch(req('/api/catalog'),e,ctx)).json();assert.deepEqual(catalog.products[0].images,photos);assert.equal(catalog.products[0].image,photos[0]);
+ const page=await (await worker.fetch(req('/products/pouch--one'),e,ctx)).text();assert.equal((page.match(/data-gallery-photo/g)||[]).length,3);for(const photo of photos)assert.ok(page.includes(photo));
+ const sitemap=await (await worker.fetch(req('/sitemap.xml'),e,ctx)).text();for(const photo of photos)assert.ok(sitemap.includes(photo));
+ for(const images of [[...photos,'/images/four.jpg'],[photos[0],photos[0]],['https://other.invalid/a.jpg'],['/images/missing.jpg']])assert.equal((await save({...listing,images})).status,400);
+ const legacy={...listing,image:photos[0]};delete legacy.images;assert.equal((await save(legacy)).status,200);assert.deepEqual(JSON.parse(e.sql.prepare("SELECT gallery FROM products WHERE id='one'").get().gallery),photos);
+ const remaining=[photos[2],photos[0]];assert.equal((await save({...listing,images:remaining})).status,200);catalog=await (await worker.fetch(req('/api/catalog'),e,ctx)).json();assert.deepEqual(catalog.products[0].images,remaining);assert.equal(catalog.products[0].image,photos[2]);assert.equal(e.sql.prepare('SELECT count(*) n FROM images').get().n,4);
  }finally{globalThis.fetch=previousFetch;}
 });
 
